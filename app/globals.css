@@ -99,9 +99,11 @@
   --color-bad: var(--bad);
   --color-bad-soft: var(--bad-soft);
 
-  --font-sans: var(--font-figtree), var(--font-bangla), ui-sans-serif, system-ui, sans-serif;
-  --font-bangla: var(--font-bangla), var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Bengali",
+    "Hind Siliguri", "SolaimanLipi", "Nirmala UI", sans-serif;
+  --font-bangla: "Noto Sans Bengali", "Hind Siliguri", "SolaimanLipi", "Nirmala UI",
+    ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, "Cascadia Mono", monospace;
 
   --radius-card: var(--radius);
   --radius-card-lg: var(--radius-lg);
@@ -138,15 +140,88 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-feature-settings: "ss01", "cv11";
+  font-feature-settings: "cv11";
   line-height: 1.55;
   overflow-x: hidden;
+  min-height: 100dvh;
 }
 
-:lang(bn) body,
-body:lang(bn) {
+html[lang="bn"] body,
+:lang(bn) body {
   font-family: var(--font-bangla);
-  line-height: 1.7;
+  line-height: 1.75;
+}
+
+html[lang="en"] body {
+  font-family: var(--font-sans);
+  line-height: 1.55;
+}
+
+/* ---------- Layout helpers ---------- */
+.shell {
+  width: 100%;
+  max-width: 78rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+@media (min-width: 640px) {
+  .shell { padding-inline: 1.5rem; }
+}
+@media (min-width: 1024px) {
+  .shell { padding-inline: 2rem; }
+}
+.narrow { max-width: 46rem; }
+
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Brand mark ---------- */
+.brand-mark {
+  filter: drop-shadow(0 1px 1px rgb(22 21 28 / 0.12));
+}
+
+/* ---------- Legal prose ---------- */
+.prose-legal { max-width: 68ch; }
+.prose-legal h2 {
+  font-size: 1.2rem;
+  font-weight: 650;
+  margin-top: 2rem;
+  margin-bottom: 0.6rem;
+}
+.prose-legal h3 {
+  font-size: 1rem;
+  font-weight: 650;
+  margin-top: 1.35rem;
+  margin-bottom: 0.4rem;
+}
+.prose-legal p, .prose-legal li {
+  color: var(--ink-2);
+  font-size: 0.9375rem;
+  line-height: 1.8;
+}
+.prose-legal p { margin-block: 0.6rem; }
+.prose-legal ul { list-style: disc; padding-inline-start: 1.3rem; margin-block: 0.5rem; }
+.prose-legal li { margin-block: 0.25rem; }
+.prose-legal a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+
+/* ---------- Scroll areas ---------- */
+.scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Media in galleries: never wider than its cell. */
+.media-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 ::selection {
