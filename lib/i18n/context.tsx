@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
 import { DEFAULT_LOCALE, dictionaries, isLocale, type Dictionary, type Locale } from "./dictionaries";
 
 const STORAGE_KEY = "anoneye.locale";
@@ -13,33 +13,56 @@ interface I18nValue {
 
 const I18nContext = createContext<I18nValue | null>(null);
 
-export function I18nProvider({ children }: { children: React.ReactNode }) {
-  // Server and first client render always use the default locale so markup matches.
-  const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
+const listeners = new Set<() => void>();
+let initialized = false;
+let current: Locale = DEFAULT_LOCALE;
 
-  useEffect(() => {
+function getSnapshot(): Locale {
+  if (!initialized && typeof window !== "undefined") {
+    initialized = true;
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (isLocale(stored) && stored !== DEFAULT_LOCALE) setLocaleState(stored);
+      if (isLocale(stored)) current = stored;
     } catch {
-      /* storage unavailable: keep default */
+      /* storage unavailable: keep the default */
     }
-  }, []);
+  }
+  return current;
+}
+
+function getServerSnapshot(): Locale {
+  return DEFAULT_LOCALE;
+}
+
+function subscribe(callback: () => void) {
+  listeners.add(callback);
+  return () => listeners.delete(callback);
+}
+
+function setLocaleGlobal(next: Locale) {
+  current = next;
+  initialized = true;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, next);
+  } catch {
+    /* ignore */
+  }
+  for (const listener of listeners) listener();
+}
+
+export function I18nProvider({ children }: { children: React.ReactNode }) {
+  // The server and the hydration render both use the default locale, so the
+  // markup matches; the stored preference is applied right after hydration.
+  const locale = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
 
-  const setLocale = useCallback((next: Locale) => {
-    setLocaleState(next);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const value = useMemo<I18nValue>(() => ({ locale, t: dictionaries[locale], setLocale }), [locale, setLocale]);
+  const value = useMemo<I18nValue>(
+    () => ({ locale, t: dictionaries[locale], setLocale: setLocaleGlobal }),
+    [locale],
+  );
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 

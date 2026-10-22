@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900" role="img" aria-label="SAMPLE">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset="1" stop-color="#93c5fd"/></linearGradient>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="2" fill="#ffffff" opacity="0.22"/></pattern>
+  </defs>
+  <rect width="1200" height="900" fill="url(#bg)"/>
+  <rect width="1200" height="900" fill="url(#dots)"/>
+  <g fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="3">
+    <circle cx="816.0000000000001" cy="324" r="216"/>
+    <circle cx="816.0000000000001" cy="324" r="117"/>
+    <path d="M144 702 L600 468 L1056 720"/>
+  </g>
+  <text x="600" y="874" font-family="ui-sans-serif, system-ui, sans-serif" font-size="55" fill="#ffffff" text-anchor="middle" opacity="0.8" letter-spacing="4">SAMPLE</text>
+</svg>

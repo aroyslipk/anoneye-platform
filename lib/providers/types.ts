@@ -1,9 +1,10 @@
 /**
- * Shared provider types for Anoneye's social-platform adapter layer.
+ * Provider abstraction: everything the app knows about a social platform goes
+ * through this contract. No page or route talks to Meta directly.
  *
- * Milestone 1 ships the input-parsing half of this layer (pure functions,
- * runs in the browser). Live lookups, media, and metrics land with the
- * provider adapters in later milestones — see PLAN.md.
+ * The layer is deliberately explicit about what each platform does *not*
+ * return. Missing metrics are `undefined` (never 0), and every limitation is a
+ * stable code the UI can translate.
  */
 
 export const PLATFORMS = ["instagram", "facebook"] as const;
@@ -13,52 +14,43 @@ export function isPlatform(value: unknown): value is Platform {
   return typeof value === "string" && (PLATFORMS as readonly string[]).includes(value);
 }
 
-/** How a capability is currently available to the deployed app. */
+export type CapabilityId =
+  | "parse-input"
+  | "profile-lookup"
+  | "public-media"
+  | "metrics-history"
+  | "stories"
+  | "media-download"
+  | "visitor-identity";
+
+/** Honest state of a capability, checked against current Meta documentation. */
 export type CapabilityStatus =
-  | "available" // works right now, no external credentials needed
-  | "requires-config" // documented API supports it; owner must configure credentials / permissions
-  | "unverified" // not yet verified against current official documentation; kept disabled
-  | "unsupported"; // the official API does not offer this; Anoneye will not fake it
+  | "available" // works with no third-party credentials
+  | "requires-config" // documented API supports it; deployment needs credentials/permissions
+  | "unverified" // not verified against current docs; kept disabled
+  | "unsupported"; // not offered by the official API; never simulated
 
 export interface Capability {
-  id:
-    | "parse-input"
-    | "profile-lookup"
-    | "public-media"
-    | "stories"
-    | "metrics-history"
-    | "media-download"
-    | "visitor-identity";
+  id: CapabilityId;
   status: CapabilityStatus;
-  /** Account type + permissions required, in plain words (English identifiers kept). */
+  /** Human-readable prerequisite list (technical identifiers stay in English). */
   requires?: string[];
-  /** Whether the end user must connect / authorise their own account. */
+  /** True when the end user must connect their own account. */
   userConnectRequired?: boolean;
+  /** Optional key for localised explanation. */
+  explanationKey?: string;
+  /** Official documentation used to verify the claim. */
+  sourceUrl?: string;
 }
 
 export interface ParsedProfileInput {
   platform: Platform;
-  /** Normalised handle, lower-cased for Instagram, as-entered-case for Facebook. */
+  /** Normalised handle: lower-cased, because profiles are case-insensitive. */
   identifier: string;
-  /** Canonical public URL rebuilt from the identifier (never the raw user URL). */
+  /** Canonical public URL rebuilt from the handle (never the raw user URL). */
   canonicalUrl: string;
-  /** "username" | "url" — how the user supplied the value. */
   inputKind: "username" | "url";
 }
-
-/**
- * One result model shared by every provider operation so the UI can render
- * the right state without inspecting platform-specific errors.
- */
-export type ProviderResult<T> =
-  | { kind: "ok"; data: T; fetchedAt: string; source: string }
-  | { kind: "invalid-input"; reason: InvalidInputReason }
-  | { kind: "unsupported"; capability: Capability["id"] }
-  | { kind: "not-configured"; missing: string[] }
-  | { kind: "unauthorized" }
-  | { kind: "rate-limited"; retryAfterSeconds?: number }
-  | { kind: "not-found" }
-  | { kind: "unavailable" };
 
 export type InvalidInputReason =
   | "empty"
@@ -68,3 +60,119 @@ export type InvalidInputReason =
   | "platform-mismatch"
   | "not-a-profile-path"
   | "bad-username";
+
+export type ParseOutcome =
+  | { ok: true; value: ParsedProfileInput }
+  | { ok: false; reason: InvalidInputReason };
+
+export type MetricKey = "followers" | "following" | "mediaCount";
+
+/** Only metrics the provider actually returned are present. */
+export type MetricSet = Partial<Record<MetricKey, number>>;
+
+export type MediaType = "image" | "video" | "carousel" | "unknown";
+
+export interface MediaItem {
+  /** Provider media id. */
+  id: string;
+  type: MediaType;
+  /** Direct image URL from the provider CDN (never proxied by Anoneye). */
+  thumbnailUrl?: string;
+  /** Direct video/image URL when the provider supplies one. */
+  mediaUrl?: string;
+  permalink?: string;
+  /** ISO timestamp from the provider. */
+  timestamp?: string;
+  caption?: string;
+  likeCount?: number;
+  commentsCount?: number;
+  /** "expired" when a previously stored URL is known to have expired. */
+  retrievalStatus: "listed" | "unavailable" | "expired";
+}
+
+/**
+ * Stable limitation codes. Rendering code maps them to Bangla/English text;
+ * nothing is invented to fill a gap.
+ */
+export type ProfileLimitation =
+  | "target-must-be-professional"
+  | "personal-accounts-not-supported"
+  | "age-gated-not-returned"
+  | "stories-not-supported"
+  | "media-url-may-be-omitted"
+  | "media-list-limited"
+  | "following-not-public"
+  | "profile-image-may-be-missing"
+  | "page-posts-need-approval"
+  | "verification-not-returned"
+  | "demo-fixture";
+
+export interface PublicProfile {
+  platform: Platform;
+  identifier: string;
+  /** Handle returned by the provider (may differ in case). */
+  username: string;
+  displayName?: string;
+  biography?: string;
+  profilePictureUrl?: string;
+  website?: string;
+  /** "page" for Facebook Pages, "professional" for Instagram Business Discovery. */
+  accountKind: "professional" | "page" | "unknown";
+  /** Only set when the provider documents this field; otherwise omitted. */
+  verified?: boolean;
+  canonicalUrl: string;
+  metrics: MetricSet;
+  media: MediaItem[];
+  /** True when the provider indicates more media exists than was returned. */
+  mediaHasMore: boolean;
+  limitations: ProfileLimitation[];
+  /** Human-readable data-source label, e.g. "Instagram Graph API (v26.0)". */
+  source: string;
+  /** ISO timestamp when this observation was fetched. */
+  fetchedAt: string;
+  /** True only for the explicitly enabled fixture provider. */
+  demo: boolean;
+}
+
+/** One uniform result model for every provider operation. */
+export type ProviderResult<T> =
+  | { kind: "ok"; data: T; source: string; fetchedAt: string }
+  | { kind: "invalid-input"; reason: InvalidInputReason }
+  | { kind: "not-configured"; missing: string[] }
+  | { kind: "unauthorized"; source: string }
+  | { kind: "rate-limited"; source: string; retryAfterSeconds?: number }
+  | { kind: "not-found"; source: string }
+  | { kind: "unsupported"; capability: CapabilityId }
+  | { kind: "unavailable"; source: string };
+
+export interface ProviderRuntimeContext {
+  /** Decrypted OAuth access token (user or Page token). Never logged. */
+  accessToken?: string;
+  /** Instagram professional account id used as the Business Discovery subject. */
+  instagramBusinessId?: string;
+  /** Facebook Page id + Page token for Pages the user manages. */
+  pageId?: string;
+  pageAccessToken?: string;
+  /** Deployment-level token (owner-configured) for public Page reads. */
+  serverAccessToken?: string;
+  /** Request abort signal. */
+  signal?: AbortSignal;
+}
+
+export interface SocialProvider {
+  readonly platform: Platform;
+  /** Capability matrix verified against official documentation. */
+  getCapabilities(): Capability[];
+  /** Strict input parsing for this platform. */
+  parseInput(rawInput: string): ParseOutcome;
+  /** Whether this deployment has what the provider needs for a lookup. */
+  isConfigured(context: ProviderRuntimeContext): boolean;
+  /** Secret-free names of missing configuration. */
+  missingConfig(): string[];
+  lookupProfile(
+    input: ParsedProfileInput,
+    context: ProviderRuntimeContext,
+  ): Promise<ProviderResult<PublicProfile>>;
+  /** Human-readable explanation for unsupported/unverified capabilities. */
+  getAvailabilityExplanation(id: CapabilityId): string | undefined;
+}

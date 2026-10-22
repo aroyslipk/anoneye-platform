@@ -58,7 +58,9 @@ export function validateUsername(platform: Platform, raw: string): ParseOutcome 
   const re = platform === "instagram" ? IG_USERNAME : FB_USERNAME;
   if (!re.test(handle)) return { ok: false, reason: "bad-username" };
   if (RESERVED[platform].has(handle.toLowerCase())) return { ok: false, reason: "bad-username" };
-  const identifier = platform === "instagram" ? handle.toLowerCase() : handle;
+  // Both platforms treat profile handles case-insensitively; normalising here
+  // prevents duplicate tracked rows that differ only by case.
+  const identifier = handle.toLowerCase();
   return {
     ok: true,
     value: {
@@ -85,6 +87,10 @@ export function parseProfileInput(platform: Platform, rawInput: string): ParseOu
   const input = rawInput.trim();
   if (input.length === 0) return { ok: false, reason: "empty" };
   if (input.length > MAX_INPUT_LENGTH) return { ok: false, reason: "too-long" };
+  // Reject every non-HTTP scheme early (javascript:, data:, file:, …) instead
+  // of letting it fall through to the username validator.
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(input);
+  if (scheme && !/^https?$/i.test(scheme[1])) return { ok: false, reason: "bad-url" };
 
   const looksLikeUrl = /^(https?:\/\/|www\.|[a-z0-9-]+\.(com|net)\b)/i.test(input) || input.includes("/");
   if (!looksLikeUrl) return validateUsername(platform, input);

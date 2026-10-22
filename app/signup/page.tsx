@@ -1,0 +1,27 @@
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { authBackend, getSessionUser } from "@/lib/auth/session";
+import { safeNextPath } from "@/lib/security/request";
+import { publicConfig } from "@/lib/env";
+import { AuthForm } from "@/components/auth/auth-form";
+
+export const instant = false;
+
+export const metadata: Metadata = {
+  title: "অ্যাকাউন্ট খুলুন",
+  robots: { index: false, follow: false },
+};
+
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const next = safeNextPath(params.next, "/dashboard");
+  const user = await getSessionUser().catch(() => null);
+  if (user) redirect(next);
+  return (
+    <AuthForm mode="signup" nextPath={next} authConfigured={authBackend() !== "unconfigured"} siteUrl={publicConfig.siteUrl} />
+  );
+}
